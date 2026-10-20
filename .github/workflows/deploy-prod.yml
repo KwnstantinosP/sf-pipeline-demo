@@ -22,7 +22,7 @@ jobs:
       has_changes: ${{ steps.delta.outputs.has_changes }}
       job_id: ${{ steps.validate.outputs.job_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -41,7 +41,7 @@ jobs:
         if: steps.delta.outputs.has_changes == 'true'
         run: ./scripts/ci/deploy-delta.sh validate "${{ steps.delta.outputs.test_level }}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.delta.outputs.has_changes == 'true'
         with:
           name: delta
@@ -53,9 +53,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: PRODUCTION # required reviewers on this environment are the approval gate
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: delta
           path: delta/

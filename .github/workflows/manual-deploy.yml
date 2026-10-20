@@ -37,7 +37,7 @@ jobs:
     env:
       DEPLOY_TAG: deployed/${{ inputs.environment == 'PRODUCTION' && 'prod' || inputs.environment == 'UAT' && 'uat' || inputs.environment == 'DEV' && 'dev' || 'sit' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0

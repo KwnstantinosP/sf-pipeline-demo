@@ -2,6 +2,8 @@ name: Manual Deploy
 
 # Escape hatch: deploy any ref to any org by hand, as a delta since the last recorded
 # deploy or as a full force-app deploy (also how the deployed/<env> tags are first seeded).
+# DEV is only ever deployed from here, e.g. develop -> DEV at cycle start, so nobody's
+# in-progress work in DEV is overwritten by surprise.
 on:
   workflow_dispatch:
     inputs:
@@ -13,7 +15,7 @@ on:
         description: Target org
         required: true
         type: choice
-        options: [SIT, UAT, PRODUCTION]
+        options: [DEV, SIT, UAT, PRODUCTION]
       scope:
         description: What to deploy
         required: true
@@ -33,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     env:
-      DEPLOY_TAG: deployed/${{ inputs.environment == 'PRODUCTION' && 'prod' || inputs.environment == 'UAT' && 'uat' || 'sit' }}
+      DEPLOY_TAG: deployed/${{ inputs.environment == 'PRODUCTION' && 'prod' || inputs.environment == 'UAT' && 'uat' || inputs.environment == 'DEV' && 'dev' || 'sit' }}
     steps:
       - uses: actions/checkout@v4
         with:

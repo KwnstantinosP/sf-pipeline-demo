@@ -1,10 +1,12 @@
-name: Back-merge main
+name: Back-merge
 
-# After anything lands on main (hotfix or release), open PRs that bring main back into
-# uat and develop, so a hotfix is never overwritten by the next release.
+# Keeps the lower branches up to date by opening PRs one step down the chain:
+#   main -> uat      after a hotfix or release lands on main
+#   uat  -> develop  after a QA fix (or a merged main -> uat back-merge) lands on uat
+# Merging a main -> uat PR pushes to uat, which opens the uat -> develop PR in turn.
 on:
   push:
-    branches: [main]
+    branches: [main, uat]
 
 permissions:
   contents: read
@@ -13,30 +15,31 @@ permissions:
 jobs:
   back-merge:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [uat, develop]
+    env:
+      SOURCE: ${{ github.ref_name }}
+      TARGET: ${{ github.ref_name == 'main' && 'uat' || 'develop' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Open back-merge PR if main has changes the target lacks
+      # Compares content, not history: a develop -> uat promotion leaves nothing new for
+      # develop, so no PR is opened for it.
+      - name: Open back-merge PR if the target is missing changes
         env:
           GH_TOKEN: ${{ github.token }}
-          TARGET: ${{ matrix.target }}
         run: |
-          merged_tree=$(git merge-tree --write-tree "origin/$TARGET" origin/main | head -1 || true)
+          merged_tree=$(git merge-tree --write-tree "origin/$TARGET" "origin/$SOURCE" | head -1 || true)
           target_tree=$(git rev-parse "origin/$TARGET^{tree}")
           if [ "$merged_tree" = "$target_tree" ]; then
-            echo "$TARGET already contains everything on main."
+            echo "$TARGET already contains everything on $SOURCE."
             exit 0
           fi
-          open=$(gh pr list --base "$TARGET" --head main --state open --json number --jq length)
+          open=$(gh pr list --base "$TARGET" --head "$SOURCE" --state open --json number --jq length)
           if [ "$open" != "0" ]; then
-            echo "A back-merge PR into $TARGET is already open."
+            echo "A back-merge PR from $SOURCE into $TARGET is already open."
             exit 0
           fi
-          gh pr create --base "$TARGET" --head main \
-            --title "Back-merge main into $TARGET" \
-            --body "Automatic back-merge after ${GITHUB_SHA:0:7} landed on main. Merge with a merge commit, not squash."
+          gh pr create --base "$TARGET" --head "$SOURCE" \
+            --title "Back-merge $SOURCE into $TARGET" \
+            --body "Automatic back-merge after ${GITHUB_SHA:0:7} landed on $SOURCE. Merge with a merge commit, not squash."

@@ -1,0 +1,77 @@
+name: Deploy to PRODUCTION
+
+# Merge to main (release or hotfix): validate the delta against PRODUCTION, wait for an
+# approver on the PRODUCTION environment, then quick-deploy the validated package.
+on:
+  push:
+    branches: [main]
+    paths: ['force-app/**']
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    environment: PRODUCTION-VALIDATE
+    outputs:
+      has_changes: ${{ steps.delta.outputs.has_changes }}
+      job_id: ${{ steps.validate.outputs.job_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/sf-setup
+        with:
+          auth-url: ${{ secrets.SFDX_AUTH_URL }}
+
+      - name: Build delta since last deploy
+        id: delta
+        run: |
+          FROM=$(git rev-parse -q --verify refs/tags/deployed/prod || true)
+          ./scripts/ci/build-delta.sh "$FROM" HEAD local
+
+      - name: Validate
+        id: validate
+        if: steps.delta.outputs.has_changes == 'true'
+        run: ./scripts/ci/deploy-delta.sh validate "${{ steps.delta.outputs.test_level }}"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.delta.outputs.has_changes == 'true'
+        with:
+          name: delta
+          path: delta/
+
+  deploy:
+    needs: validate
+    if: needs.validate.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    environment: PRODUCTION # required reviewers on this environment are the approval gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: delta
+          path: delta/
+
+      - uses: ./.github/actions/sf-setup
+        with:
+          auth-url: ${{ secrets.SFDX_AUTH_URL }}
+
+      - name: Quick deploy validated package
+        if: needs.validate.outputs.job_id != ''
+        run: sf project deploy quick --job-id "${{ needs.validate.outputs.job_id }}" --wait 60
+
+      # No Apex in the delta means no quick-deployable validation, so deploy it directly.
+      - name: Deploy metadata-only package
+        if: needs.validate.outputs.job_id == ''
+        run: ./scripts/ci/deploy-delta.sh deploy NoTestRun
+
+      - name: Record deployed commit
+        run: git push --force origin "${GITHUB_SHA}:refs/tags/deployed/prod"

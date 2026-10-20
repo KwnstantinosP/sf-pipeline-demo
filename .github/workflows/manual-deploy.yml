@@ -1,0 +1,62 @@
+name: Manual Deploy
+
+# Escape hatch: deploy any ref to any org by hand, as a delta since the last recorded
+# deploy or as a full force-app deploy (also how the deployed/<env> tags are first seeded).
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to deploy
+        required: true
+        default: develop
+      environment:
+        description: Target org
+        required: true
+        type: choice
+        options: [SIT, UAT, PRODUCTION]
+      scope:
+        description: What to deploy
+        required: true
+        type: choice
+        options: [delta, full]
+      validation_only:
+        description: Check-only, nothing is saved
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_TAG: deployed/${{ inputs.environment == 'PRODUCTION' && 'prod' || inputs.environment == 'UAT' && 'uat' || 'sit' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - uses: ./.github/actions/sf-setup
+        with:
+          auth-url: ${{ secrets.SFDX_AUTH_URL }}
+
+      - name: Build package
+        id: delta
+        run: |
+          FROM=""
+          if [ "${{ inputs.scope }}" = delta ]; then
+            FROM=$(git rev-parse -q --verify "refs/tags/$DEPLOY_TAG" || true)
+          fi
+          ./scripts/ci/build-delta.sh "$FROM" HEAD local
+
+      - name: Deploy
+        if: steps.delta.outputs.has_changes == 'true'
+        run: ./scripts/ci/deploy-delta.sh ${{ inputs.validation_only && 'check' || 'deploy' }} "${{ steps.delta.outputs.test_level }}"
+
+      - name: Record deployed commit
+        if: ${{ !inputs.validation_only }}
+        run: git push --force origin "$(git rev-parse HEAD):refs/tags/${DEPLOY_TAG}"

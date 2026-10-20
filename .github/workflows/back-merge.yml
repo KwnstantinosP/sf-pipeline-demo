@@ -1,0 +1,42 @@
+name: Back-merge main
+
+# After anything lands on main (hotfix or release), open PRs that bring main back into
+# uat and develop, so a hotfix is never overwritten by the next release.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  back-merge:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [uat, develop]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open back-merge PR if main has changes the target lacks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          merged_tree=$(git merge-tree --write-tree "origin/$TARGET" origin/main | head -1 || true)
+          target_tree=$(git rev-parse "origin/$TARGET^{tree}")
+          if [ "$merged_tree" = "$target_tree" ]; then
+            echo "$TARGET already contains everything on main."
+            exit 0
+          fi
+          open=$(gh pr list --base "$TARGET" --head main --state open --json number --jq length)
+          if [ "$open" != "0" ]; then
+            echo "A back-merge PR into $TARGET is already open."
+            exit 0
+          fi
+          gh pr create --base "$TARGET" --head main \
+            --title "Back-merge main into $TARGET" \
+            --body "Automatic back-merge after ${GITHUB_SHA:0:7} landed on main. Merge with a merge commit, not squash."

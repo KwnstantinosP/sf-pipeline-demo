@@ -1,0 +1,44 @@
+name: Deploy to SIT / UAT
+
+# Merge to develop deploys to SIT, merge to uat deploys to UAT. Only the delta since the
+# last successful deploy goes out; the deployed/<env> tag records where that was.
+on:
+  push:
+    branches: [develop, uat]
+    paths: ['force-app/**']
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'uat' && 'UAT' || 'SIT' }}
+    env:
+      DEPLOY_TAG: ${{ github.ref_name == 'uat' && 'deployed/uat' || 'deployed/sit' }}
+      TEST_POLICY: ${{ github.ref_name == 'uat' && 'local' || 'specified' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/sf-setup
+        with:
+          auth-url: ${{ secrets.SFDX_AUTH_URL }}
+
+      - name: Build delta since last deploy
+        id: delta
+        run: |
+          FROM=$(git rev-parse -q --verify "refs/tags/$DEPLOY_TAG" || true)
+          ./scripts/ci/build-delta.sh "$FROM" HEAD "$TEST_POLICY"
+
+      - name: Deploy
+        if: steps.delta.outputs.has_changes == 'true'
+        run: ./scripts/ci/deploy-delta.sh deploy "${{ steps.delta.outputs.test_level }}" "${{ steps.delta.outputs.tests }}"
+
+      - name: Record deployed commit
+        run: git push --force origin "${GITHUB_SHA}:refs/tags/${DEPLOY_TAG}"

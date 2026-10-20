@@ -1,0 +1,35 @@
+name: PR Validate
+
+# Check-only deploy of the PR's delta against the org its target branch feeds.
+# develop -> SIT, uat -> UAT, main -> PRODUCTION (hotfix and release PRs).
+on:
+  pull_request:
+    branches: [develop, uat, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.base_ref == 'main' && 'PRODUCTION-VALIDATE' || github.base_ref == 'uat' && 'UAT' || 'SIT' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/sf-setup
+        with:
+          auth-url: ${{ secrets.SFDX_AUTH_URL }}
+
+      # HEAD is GitHub's merge of the PR into its base, so base..HEAD is exactly what the PR adds.
+      - name: Build delta
+        id: delta
+        run: ./scripts/ci/build-delta.sh "origin/${{ github.base_ref }}" HEAD ${{ github.base_ref == 'develop' && 'specified' || 'local' }}
+
+      - name: Check-only deploy
+        if: steps.delta.outputs.has_changes == 'true'
+        run: ./scripts/ci/deploy-delta.sh check "${{ steps.delta.outputs.test_level }}" "${{ steps.delta.outputs.tests }}"

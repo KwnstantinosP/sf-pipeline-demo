@@ -1,0 +1,29 @@
+name: Salesforce CLI setup
+description: Installs the sf CLI and sfdx-git-delta, then logs in to the target org.
+inputs:
+  auth-url:
+    description: SFDX auth URL of the target org
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install sf CLI and sfdx-git-delta
+      shell: bash
+      run: |
+        npm install --global @salesforce/cli
+        echo y | sf plugins install sfdx-git-delta
+        sf --version
+        sf plugins
+
+    - name: Log in to the org
+      shell: bash
+      env:
+        SFDX_AUTH_URL: ${{ inputs.auth-url }}
+      run: |
+        echo "$SFDX_AUTH_URL" > ./authurl.txt
+        sf org login sfdx-url --sfdx-url-file ./authurl.txt --alias target --set-default
+        rm ./authurl.txt

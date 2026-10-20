@@ -57,6 +57,7 @@ if [ "${1:-}" != "--skip-login" ]; then
   login demo-prod
 fi
 
+copy_secret demo-dev DEV
 copy_secret demo-sit SIT
 copy_secret demo-uat UAT
 copy_secret demo-prod PRODUCTION-VALIDATE

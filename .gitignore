@@ -5,3 +5,4 @@ node_modules/
 validate-result.json
 authurl.txt
 .vscode/
+eslint-result.json

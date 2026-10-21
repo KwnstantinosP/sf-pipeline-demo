@@ -18,7 +18,7 @@ flowchart LR
 
 | Event | Workflow | What happens |
 |---|---|---|
-| PR into `develop` / `uat` / `main` | `pr-validate.yml` | Check-only deploy of the PR's delta to SIT / UAT / PROD |
+| PR into `develop` / `uat` / `main` | `pr-validate.yml` | Check-only deploy of the PR's delta to SIT / UAT / PROD, plus ESLint and Prettier on the changed files |
 | Merge into `develop` | `deploy-sandbox.yml` | Delta deploy to **SIT**, running only the tests for the changed classes |
 | Merge into `uat` | `deploy-sandbox.yml` | Delta deploy to **UAT** with `RunLocalTests` if Apex changed |
 | Merge into `main` | `deploy-prod.yml` | Validate against PROD → **approval** → quick deploy |
@@ -49,6 +49,19 @@ The DEV org is never deployed automatically, because people build there by hand.
   - No Apex in the delta: `NoTestRun`.
   - SIT: the changed test classes, plus `<Class>Test` / `<Class>_Test` / `<Class>TestClass` for each changed class. If any class has no match, or a trigger changed, it falls back to `RunLocalTests`.
   - UAT and PROD: `RunLocalTests` whenever the delta has Apex.
+
+## Code checks run on the PR, not on laptops
+
+There are no git hooks. Nobody needs Node, npm, husky or lint-staged installed, and committing from the VS Code UI just works. The *Code quality* job in *PR Validate* checks only the files the PR changed:
+
+| Check | Files | Effect |
+|---|---|---|
+| ESLint (`@salesforce/eslint-config-lwc` recommended) | LWC `.js` | Errors fail the PR |
+| Prettier (Apex and XML plugins) | Anything Prettier can format | Report only, as warnings on the PR's *Files changed* tab |
+
+Prettier stays report-only because files that were never formatted would be rewritten end to end. Set `STRICT_FORMAT: "true"` in `pr-validate.yml` after a one-time, team-agreed "format everything" commit.
+
+To run the same checks locally (optional): `npm ci`, then `npx eslint <files>` and `npx prettier --check <files>`.
 
 ## Setup (about 30 minutes)
 

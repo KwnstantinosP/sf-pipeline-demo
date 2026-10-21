@@ -2,6 +2,7 @@ name: PR Validate
 
 # Check-only deploy of the PR's delta against the org its target branch feeds.
 # develop -> SIT, uat -> UAT, main -> PRODUCTION (hotfix and release PRs).
+# Also lints and format-checks the changed files, replacing local pre-commit hooks.
 on:
   pull_request:
     branches: [develop, uat, main]
@@ -33,3 +34,26 @@ jobs:
       - name: Check-only deploy
         if: steps.delta.outputs.has_changes == 'true'
         run: ./scripts/ci/deploy-delta.sh check "${{ steps.delta.outputs.test_level }}" "${{ steps.delta.outputs.tests }}"
+
+  quality:
+    name: Code quality (changed files)
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install ESLint and Prettier
+        run: npm ci --no-audit --no-fund
+
+      # ESLint errors fail the check; Prettier only reports until STRICT_FORMAT is "true".
+      - name: Check changed files
+        env:
+          STRICT_FORMAT: "false"
+        run: ./scripts/ci/quality-check.sh "origin/${{ github.base_ref }}"

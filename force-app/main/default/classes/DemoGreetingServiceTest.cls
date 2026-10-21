@@ -15,4 +15,9 @@ private class DemoGreetingServiceTest {
         Assert.areEqual('Hello from the pipeline, Gold customer!', DemoGreetingService.greetTier('Gold'));
         Assert.areEqual('Hello from the pipeline, team!', DemoGreetingService.greetTier(null));
     }
+
+    @IsTest
+    static void trimsTier() {
+        Assert.areEqual('Hello from the pipeline, Gold customer!', DemoGreetingService.greetTier('  Gold  '));
+    }
 }

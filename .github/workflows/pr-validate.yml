@@ -3,10 +3,12 @@ name: PR Validate
 # Check-only deploy of the PR's delta against the org its target branch feeds.
 # develop -> SIT, uat -> UAT, main -> PRODUCTION (hotfix and release PRs).
 # Also lints and format-checks the changed files, replacing local pre-commit hooks.
+# A PR that deletes components from the org fails until it has the allow-destructive label,
+# so adding or removing a label re-runs the checks.
 on:
   pull_request:
     branches: [develop, uat, main]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 concurrency:
   group: pr-validate-${{ github.event.pull_request.number }}
@@ -30,6 +32,13 @@ jobs:
       - name: Build delta
         id: delta
         run: ./scripts/ci/build-delta.sh "origin/${{ github.base_ref }}" HEAD ${{ github.base_ref == 'develop' && 'specified' || 'local' }}
+
+      - name: Deletions need the allow-destructive label
+        if: steps.delta.outputs.has_destructive == 'true' && !contains(github.event.pull_request.labels.*.name, 'allow-destructive')
+        run: |
+          echo "::error title=Destructive changes::This PR deletes components from the org. Check the list in the job summary, then add the label allow-destructive to the PR to approve the deletion."
+          cat delta/destructiveChanges/destructiveChanges.xml
+          exit 1
 
       - name: Check-only deploy
         if: steps.delta.outputs.has_changes == 'true'

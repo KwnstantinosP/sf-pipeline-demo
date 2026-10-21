@@ -18,7 +18,7 @@ flowchart LR
 
 | Event | Workflow | What happens |
 |---|---|---|
-| PR into `develop` / `uat` / `main` | `pr-validate.yml` | Check-only deploy of the PR's delta to SIT / UAT / PROD, plus ESLint and Prettier on the changed files |
+| PR into `develop` / `uat` / `main` | `pr-validate.yml` | Check-only deploy of the PR's delta to SIT / UAT / PROD, plus ESLint and Prettier on the changed files. Deletions need the `allow-destructive` label. |
 | Merge into `develop` | `deploy-sandbox.yml` | Delta deploy to **SIT**, running only the tests for the changed classes |
 | Merge into `uat` | `deploy-sandbox.yml` | Delta deploy to **UAT** with `RunLocalTests` if Apex changed |
 | Merge into `main` | `deploy-prod.yml` | Validate against PROD → **approval** → quick deploy |
@@ -49,6 +49,33 @@ The DEV org is never deployed automatically, because people build there by hand.
   - No Apex in the delta: `NoTestRun`.
   - SIT: the changed test classes, plus `<Class>Test` / `<Class>_Test` / `<Class>TestClass` for each changed class. If any class has no match, or a trigger changed, it falls back to `RunLocalTests`.
   - UAT and PROD: `RunLocalTests` whenever the delta has Apex.
+
+## Deleting components
+
+Deleting a component's files in git deletes it from each org as the change reaches it. There is no hand-kept `destructiveChanges.xml` in the repo: the pipeline builds one in every run from the diff, then discards it. Two safeguards sit on top:
+
+**1. Deletions need approval on the PR.** If a PR's delta deletes anything, *PR Validate* fails and lists the components. A reviewer checks the list and adds the label **`allow-destructive`** to the PR, which re-runs the check. Nothing is ever deleted by accident, for example by a bad merge or a retrieve that missed a file.
+
+**2. Data is never deleted automatically.** Paths listed in [`.sgdignoreDestructive`](.sgdignoreDestructive) are left out of the deletion list even when their files are deleted in git:
+
+| Kept in the org | Why |
+|---|---|
+| Custom objects (incl. custom settings, custom metadata types, platform events) | Deleting an object deletes its records |
+| Custom fields | Deleting a field deletes its data |
+| Custom metadata records | They are configuration data |
+| Record types | Kept by sfdx-git-delta itself: the Metadata API can't delete them |
+
+The run's summary lists these under *Deleted in git but kept in the org*. Remove them by hand in Setup once the data is backed up or no longer needed. Edit `.sgdignoreDestructive` to protect more paths (gitignore syntax).
+
+**What happens when a deleted component is wanted back:**
+
+| Situation | Result |
+|---|---|
+| Deleted and re-added before the change reached an org | That org sees no difference: nothing is deleted or redeployed |
+| Deletion already deployed, then re-added in git | The next deploy creates it again; nothing is left over from the delete |
+| A protected field was "deleted" in git, then re-added | It never left the org, so its data is untouched |
+
+A deleted field that was **not** protected can be restored with its data from Setup → Object Manager → *Deleted Fields* for about 15 days. Re-deploying it instead creates a new, empty field.
 
 ## Code checks run on the PR, not on laptops
 
@@ -85,6 +112,7 @@ To run the same checks locally (optional): `npm ci`, then `npx eslint <files>` a
 5. **Actions settings** (Settings → Actions → General): Workflow permissions = *Read and write*, and tick *Allow GitHub Actions to create and approve pull requests* (needed for back-merge PRs).
 6. **Branch protection** on `develop`, `uat` and `main`: require a PR and the `validate` status check.
 7. **Seed the tags.** Run *Manual Deploy* with `scope: full` and `validation_only: false` once each for DEV, SIT, UAT and PRODUCTION. GitHub doesn't start workflows for the first push into an empty repo, so this step is needed even though the first push contains code.
+8. **Label.** Create the label `allow-destructive` (PR page → Labels → *Edit labels* → *New label*), used to approve deletions.
 
 `scripts/setup/connect-orgs.sh` does steps 2 and the secrets part of step 4: it logs in to the orgs and copies each auth URL to the clipboard for pasting into GitHub.
 
@@ -114,6 +142,12 @@ To run the same checks locally (optional): `npm ci`, then `npx eslint <files>` a
 **Scene 5: metadata-only change**
 Change a page layout or a field description. The pipeline deploys it with `NoTestRun` in seconds.
 
+**Scene 6: deletions are deliberate, data is protected**
+1. Branch from `develop`, delete the `pipelineDemoBadge` LWC folder **and** `Pipeline_Demo_Tier__c.field-meta.xml`, open a PR.
+2. *PR Validate* fails: "This PR deletes components from the org". The summary lists the LWC to be deleted, and the field under *Deleted in git but kept in the org*.
+3. Add the `allow-destructive` label. The check re-runs and passes. Merge: SIT loses the LWC, but the field and its data stay.
+4. Revert the PR. The LWC is deployed again, as if nothing happened.
+
 ## Things to call out to the team
 
 - **Org drift.** The delta assumes each org matches its tag. Hand-made changes in SIT/UAT/PROD aren't tracked. Run *Manual Deploy* with `scope: full`, `validation_only: true` on a schedule to catch drift.
@@ -121,4 +155,5 @@ Change a page layout or a field description. The pipeline deploys it with `NoTes
 - **PROD coverage.** PROD always runs `RunLocalTests` when Apex changes, so coverage rules stay exactly as they are today.
 - **Quick deploy window.** A validation can only be quick-deployed for a limited time and only if nothing else deploys in between, so approve promptly.
 - **Hotfix rule.** A hotfix ships only the files it changed, even while `uat` and `develop` hold unreleased work. Still cut it from `main` and build it in a sandbox refreshed from PROD, so it is tested against what PROD actually runs.
-- **PRs opened by the back-merge job** don't trigger *PR Validate*, because GitHub doesn't run workflows on PRs opened with `GITHUB_TOKEN`. Close and reopen the PR, or switch the job to a GitHub App or PAT token.
+- **PRs opened by the back-merge job** don't trigger *PR Validate*, because GitHub doesn't run workflows on PRs opened with `GITHUB_TOKEN`. Close and reopen the PR, or switch the job to a GitHub App or PAT token. Once they are validated, a back-merge that carries deletions also needs the `allow-destructive` label.
+- **Deletions.** A label approves code-level deletions; data (objects, fields, custom metadata records) is only ever removed by hand. Agree who may add the `allow-destructive` label.

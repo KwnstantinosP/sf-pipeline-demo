@@ -1,0 +1,13 @@
+# Components that hold data. The pipeline never deletes these from an org, even when their
+# files are deleted in git: they are left out of destructiveChanges.xml and stay in the org.
+# Remove them by hand in Setup once the data is backed up or no longer needed.
+# Record types are always kept by sfdx-git-delta itself (the Metadata API cannot delete them).
+
+# Custom objects, including custom settings, custom metadata types and platform events
+**/objects/*/*.object-meta.xml
+
+# Custom fields
+**/objects/*/fields/*.field-meta.xml
+
+# Custom metadata records
+**/customMetadata/*.md-meta.xml

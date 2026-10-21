@@ -14,6 +14,6 @@ public with sharing class DemoGreetingService {
      * @return The greeting text
      */
     public static String greetTier(String tier) {
-        return greet(String.isBlank(tier) ? null : tier + ' customer');
+        return greet(String.isBlank(tier) ? null : tier.trim() + ' customer');
     }
 }

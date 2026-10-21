@@ -20,4 +20,11 @@ private class DemoGreetingServiceTest {
     static void trimsTier() {
         Assert.areEqual('Hello from the pipeline, Gold customer!', DemoGreetingService.greetTier('  Gold  '));
     }
+
+    @IsTest
+    static void greetsAccountByTierOrName() {
+        Assert.areEqual('Hello from the pipeline, Gold customer!', DemoGreetingService.greetAccount(new Account(Name = 'Acme', Pipeline_Demo_Tier__c = 'Gold')));
+        Assert.areEqual('Hello from the pipeline, Acme!', DemoGreetingService.greetAccount(new Account(Name = 'Acme')));
+        Assert.areEqual('Hello from the pipeline, team!', DemoGreetingService.greetAccount(null));
+    }
 }

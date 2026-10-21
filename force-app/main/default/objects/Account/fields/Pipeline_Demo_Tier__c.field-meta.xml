@@ -3,7 +3,7 @@
     <fullName>Pipeline_Demo_Tier__c</fullName>
     <description>Demo field, deployed by the delta pipeline.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Created by the pipeline demo.</inlineHelpText>
+    <inlineHelpText>Used by DemoGreetingService.greetAccount to pick the greeting.</inlineHelpText>
     <label>Pipeline Demo Tier</label>
     <length>50</length>
     <required>false</required>

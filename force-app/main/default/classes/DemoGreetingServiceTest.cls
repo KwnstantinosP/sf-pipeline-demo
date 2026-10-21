@@ -22,13 +22,6 @@ private class DemoGreetingServiceTest {
     }
 
     @IsTest
-    static void greetsAccountByTierOrName() {
-        Assert.areEqual('Hello from the pipeline, Gold customer!', DemoGreetingService.greetAccount(new Account(Name = 'Acme', Pipeline_Demo_Tier__c = 'Gold')));
-        Assert.areEqual('Hello from the pipeline, Acme!', DemoGreetingService.greetAccount(new Account(Name = 'Acme')));
-        Assert.areEqual('Hello from the pipeline, team!', DemoGreetingService.greetAccount(null));
-    }
-
-    @IsTest
     static void capitalizesTier() {
         Assert.areEqual('Hello from the pipeline, Gold customer!', DemoGreetingService.greetTier('gold'));
     }

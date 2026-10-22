@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Legacy_Discount__c</fullName>
+    <description>Old flat discount. Being retired.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Old flat discount, kept for history.</inlineHelpText>
+    <label>Legacy Discount</label>
+    <precision>5</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Percent</type>
+</CustomField>

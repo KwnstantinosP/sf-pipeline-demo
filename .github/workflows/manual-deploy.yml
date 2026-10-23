@@ -1,4 +1,5 @@
 name: Manual Deploy
+run-name: "Manual ${{ inputs.validation_only && 'check-only' || 'deploy' }}: ${{ inputs.scope }} ${{ inputs.ref }} → ${{ inputs.environment }}"
 
 # Escape hatch: deploy any ref to any org by hand, as a delta since the last recorded
 # deploy or as a full force-app deploy (also how the deployed/<env> tags are first seeded).

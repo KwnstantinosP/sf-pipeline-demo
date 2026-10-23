@@ -21,6 +21,7 @@ test("a user can create an Account from the New Account form", async ({
   await form.getByLabel(/Account Name/).fill(name);
   await form.getByRole("button", { name: "Save", exact: true }).click();
 
-  await expect(page).toHaveURL(/\/lightning\/r\/Account\/001\w+\/view/);
-  await expect(page.getByText(name).first()).toBeVisible();
+  // Lightning opens the new record as /r/Account/001…/view or /r/001…/view depending on the org.
+  await expect(page).toHaveURL(/\/lightning\/r\/(Account\/)?001\w+\/view/);
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
 });

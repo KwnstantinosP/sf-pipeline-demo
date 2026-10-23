@@ -13,4 +13,21 @@ public with sharing class CustomerSegmentService {
     }
     return 'Small Business';
   }
+
+  /**
+   * @description Sets Customer_Segment__c on new Accounts and on Accounts whose annual revenue changed.
+   * @param accounts Accounts being saved (Trigger.new)
+   * @param oldById Previous versions by Id (Trigger.oldMap); null on insert
+   */
+  public static void assignSegments(
+    List<Account> accounts,
+    Map<Id, Account> oldById
+  ) {
+    for (Account acc : accounts) {
+      Account old = oldById == null ? null : oldById.get(acc.Id);
+      if (old == null || old.AnnualRevenue != acc.AnnualRevenue) {
+        acc.Customer_Segment__c = segmentFor(acc.AnnualRevenue);
+      }
+    }
+  }
 }

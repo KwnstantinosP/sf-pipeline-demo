@@ -1,4 +1,5 @@
 name: Regression tests
+run-name: "Regression tests on ${{ inputs.environment || 'SIT' }} (${{ github.event_name == 'schedule' && 'nightly' || 'manual' }})"
 
 # End-to-end checks against a deployed org: scenario scripts through the API, then
 # browser journeys with Playwright. Runs after every SIT/UAT deploy, every weekday

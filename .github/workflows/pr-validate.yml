@@ -1,4 +1,5 @@
 name: PR Validate
+run-name: "Validate PR #${{ github.event.pull_request.number }} (${{ github.head_ref }} → ${{ github.base_ref }}) against ${{ github.base_ref == 'main' && 'PRODUCTION' || github.base_ref == 'uat' && 'UAT' || 'SIT' }} · check-only, nothing saved"
 
 # Check-only deploy of the PR's delta against the org its target branch feeds.
 # develop -> SIT, uat -> UAT, main -> PRODUCTION (hotfix and release PRs).

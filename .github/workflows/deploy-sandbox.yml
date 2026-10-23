@@ -2,10 +2,11 @@ name: Deploy to SIT / UAT
 
 # Merge to develop deploys to SIT, merge to uat deploys to UAT. Only the delta since the
 # last successful deploy goes out; the deployed/<env> tag records where that was.
+# The regression tests then run against the freshly deployed org.
 on:
   push:
     branches: [develop, uat]
-    paths: ['force-app/**']
+    paths: ['force-app/**', 'tests/**']
 
 concurrency:
   group: deploy-${{ github.ref_name }}
@@ -42,3 +43,11 @@ jobs:
 
       - name: Record deployed commit
         run: git push --force origin "${GITHUB_SHA}:refs/tags/${DEPLOY_TAG}"
+
+  regression:
+    needs: deploy
+    uses: ./.github/workflows/regression.yml
+    with:
+      environment: ${{ github.ref_name == 'uat' && 'UAT' || 'SIT' }}
+      ref: ${{ github.sha }}
+    secrets: inherit

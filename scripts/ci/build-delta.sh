@@ -3,7 +3,7 @@
 #
 # Usage: build-delta.sh <from-ref> <to-ref> <test-policy>
 #   from-ref     last deployed commit; empty means nothing has been deployed yet, so all of force-app is packaged
-#   test-policy  specified -> run the test classes matching the changed classes (RunLocalTests if any match is missing)
+#   test-policy  specified -> run the test classes matching the changed classes and triggers (RunLocalTests if any match is missing)
 #                local     -> RunLocalTests whenever the delta contains Apex
 #
 # Components matching .sgdignoreDestructive (fields, objects, ...) are never put in
@@ -62,9 +62,7 @@ if grep -qE "<name>(ApexClass|ApexTrigger)</name>" "$PKG"; then
       [ -z "$file" ] && continue
       name=$(basename "$file")
       name="${name%.*}"
-      if [[ "$file" == *.trigger ]]; then
-        missing+=("$name")
-      elif grep -qi "@istest" "$file"; then
+      if grep -qi "@istest" "$file"; then
         found+=("$name")
       else
         match=""

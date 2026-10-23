@@ -19,8 +19,9 @@ flowchart LR
 | Event | Workflow | What happens |
 |---|---|---|
 | PR into `develop` / `uat` / `main` | `pr-validate.yml` | Check-only deploy of the PR's delta to SIT / UAT / PROD, plus ESLint and Prettier on the changed files. Deletions need the `allow-destructive` label. |
-| Merge into `develop` | `deploy-sandbox.yml` | Delta deploy to **SIT**, running only the tests for the changed classes |
-| Merge into `uat` | `deploy-sandbox.yml` | Delta deploy to **UAT** with `RunLocalTests` if Apex changed |
+| Merge into `develop` | `deploy-sandbox.yml` | Delta deploy to **SIT**, running only the tests for the changed classes, then the regression tests |
+| Merge into `uat` | `deploy-sandbox.yml` | Delta deploy to **UAT** with `RunLocalTests` if Apex changed, then the regression tests |
+| Weekdays 05:00 UTC, or manual | `regression.yml` | Regression tests against SIT (or UAT by hand) |
 | Merge into `main` | `deploy-prod.yml` | Validate against PROD → **approval** → quick deploy |
 | Merge into `main` | `back-merge.yml` | Opens a `main → uat` PR if `uat` is missing anything |
 | Merge into `uat` | `back-merge.yml` | Opens a `uat → develop` PR if `develop` is missing anything |
@@ -47,7 +48,7 @@ The DEV org is never deployed automatically, because people build there by hand.
 - If an org has no tag yet, all of `force-app` is deployed.
 - Tests:
   - No Apex in the delta: `NoTestRun`.
-  - SIT: the changed test classes, plus `<Class>Test` / `<Class>_Test` / `<Class>TestClass` for each changed class. If any class has no match, or a trigger changed, it falls back to `RunLocalTests`.
+  - SIT: the changed test classes, plus `<Name>Test` / `<Name>_Test` / `<Name>TestClass` for each changed class or trigger. If any of them has no match, it falls back to `RunLocalTests`.
   - UAT and PROD: `RunLocalTests` whenever the delta has Apex.
 
 ## Deleting components
@@ -76,6 +77,39 @@ The run's summary lists these under *Deleted in git but kept in the org*. Remove
 | A protected field was "deleted" in git, then re-added | It never left the org, so its data is untouched |
 
 A deleted field that was **not** protected can be restored with its data from Setup → Object Manager → *Deleted Fields* for about 15 days. Re-deploying it instead creates a new, empty field.
+
+## Regression tests
+
+Apex tests check code in isolation and roll everything back. Regression tests check that the **deployed org** still works end to end: the real flows, triggers, validation rules, layouts and permissions. They run after every SIT and UAT deploy, every weekday morning against SIT, and by hand from *Actions → Regression tests*. They never run against PRODUCTION.
+
+| Layer | Where | How it works | Use it for |
+|---|---|---|---|
+| **Scenario tests** | `tests/scenarios/*.apex` | Anonymous Apex run with the sf CLI: create records the way a user would, `Assert` the outcome, roll everything back | Most business flows: fast and stable |
+| **UI journeys** | `tests/ui/*.spec.js` | [Playwright](https://playwright.dev) drives a real browser through Lightning | A few critical journeys a user clicks through |
+
+Results appear in the run's **Summary**. A failed UI journey uploads the HTML report with a screenshot and a video of the failure as the `playwright-report-<env>` artifact.
+
+**Writing a scenario.** One file per business flow; the first line describes it and shows up in the summary:
+
+```apex
+// Scenario: setting an Account's annual revenue fills in its Customer Segment.
+Savepoint sp = Database.setSavepoint();
+try {
+    Account acc = new Account(Name = 'REGTEST big', AnnualRevenue = 80000000);
+    insert acc;
+    Assert.areEqual('Enterprise', [SELECT Customer_Segment__c FROM Account WHERE Id = :acc.Id].Customer_Segment__c, 'Large Accounts should be Enterprise');
+} finally {
+    Database.rollback(sp);
+}
+```
+
+- Ship a feature's scenario in the same PR as the feature. It runs as soon as the feature reaches SIT.
+- Rolling back keeps the org clean, but also cancels asynchronous work (queueables, future calls, callouts). For those flows, commit the records, check the outcome (for example the `Integration_Log__c` entry), and delete the records at the end.
+- Point integrations at test endpoints or mocks in SIT/UAT; tests must never call real external systems.
+
+**Writing a UI journey.** The global setup logs in through the sf CLI, so no password or MFA is involved, and opens `process.env.SF_LIGHTNING_URL`. Prefix the records a test creates (`REGTEST-UI-…`) and delete them in `afterAll`. Keep this layer small: Lightning UI changes break browser tests more often than API changes break scenarios.
+
+**Running them locally (optional):** `npm ci`, `npx playwright install chromium`, set an org alias `target` (`sf alias set target=<username>`), then `./scripts/ci/run-scenarios.sh` and `npx playwright test`.
 
 ## Code checks run on the PR, not on laptops
 

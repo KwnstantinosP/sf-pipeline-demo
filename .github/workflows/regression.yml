@@ -1,0 +1,78 @@
+name: Regression tests
+
+# End-to-end checks against a deployed org: scenario scripts through the API, then
+# browser journeys with Playwright. Runs after every SIT/UAT deploy, every weekday
+# morning against SIT, or by hand. Nothing here runs against PRODUCTION.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      ref:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Org to test
+        type: choice
+        options: [SIT, UAT]
+        default: SIT
+      ref:
+        description: Branch whose tests to run
+        type: string
+        default: develop
+  schedule:
+    - cron: "0 5 * * 1-5" # weekdays 05:00 UTC, against SIT
+
+permissions:
+  contents: read
+
+jobs:
+  scenarios:
+    name: Scenario tests (${{ inputs.environment || 'SIT' }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'SIT' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || 'develop' }}
+
+      - uses: ./.github/actions/sf-setup
+        with:
+          auth-url: ${{ secrets.SFDX_AUTH_URL }}
+
+      - name: Run scenarios
+        run: ./scripts/ci/run-scenarios.sh
+
+  ui:
+    name: UI journeys (${{ inputs.environment || 'SIT' }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'SIT' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || 'develop' }}
+
+      - uses: ./.github/actions/sf-setup
+        with:
+          auth-url: ${{ secrets.SFDX_AUTH_URL }}
+
+      - name: Install Playwright
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run browser journeys
+        run: npx playwright test
+
+      # Screenshots and videos of failures, plus the HTML report.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-${{ inputs.environment || 'SIT' }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

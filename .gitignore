@@ -6,3 +6,6 @@ validate-result.json
 authurl.txt
 .vscode/
 eslint-result.json
+playwright-report/
+test-results/
+.auth/

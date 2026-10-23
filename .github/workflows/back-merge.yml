@@ -1,4 +1,5 @@
 name: Back-merge
+run-name: "Back-merge check ${{ github.ref_name }} → ${{ github.ref_name == 'main' && 'uat' || 'develop' }}"
 
 # Keeps the lower branches up to date by opening PRs one step down the chain:
 #   main -> uat      after a hotfix or release lands on main

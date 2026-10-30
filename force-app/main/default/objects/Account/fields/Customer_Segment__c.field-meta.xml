@@ -3,7 +3,7 @@
     <fullName>Customer_Segment__c</fullName>
     <description>Customer segment based on annual revenue.</description>
     <externalId>false</externalId>
-    <inlineHelpText>Enterprise, Mid-Market or Small Business.</inlineHelpText>
+    <inlineHelpText>Enterprise, Mid-Markets or Small Business.</inlineHelpText>
     <label>Customer Segmnet</label>
     <required>false</required>
     <trackHistory>false</trackHistory>
